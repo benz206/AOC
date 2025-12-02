@@ -4,6 +4,7 @@
 #include <sstream>
 #include <cmath>
 #include <algorithm>
+#include <set>
 
 using namespace std;
 
@@ -70,8 +71,59 @@ void problem1() {
     cout << sum << endl;
 }
 
+long long generateRepeated(int base, int repetitions) {
+    string str = to_string(base);
+    string repeated = "";
+    for (int i = 0; i < repetitions; i++) {
+        repeated += str;
+    }
+    return stoll(repeated);
+}
+
 void problem2() {
+    string line;
+    getline(cin, line);
+
+    vector<pair<long long, long long>> ranges;
+    stringstream ss(line);
+    string rangeStr;
+    while (getline(ss, rangeStr, ',')) {
+        size_t dashPos = rangeStr.find('-');
+        long long start = stoll(rangeStr.substr(0, dashPos));
+        long long end = stoll(rangeStr.substr(dashPos + 1));
+        ranges.push_back({start, end});
+    }
+
+    set<long long> invalidIDs;
     
+    long long maxNum = 0;
+    for (const auto &range : ranges) {
+        maxNum = max(maxNum, range.second);
+    }
+    
+    int maxDigits = to_string(maxNum).length();
+    
+    for (int baseDigits = 1; baseDigits <= maxDigits / 2; baseDigits++) {
+        int startBase = (baseDigits == 1) ? 1 : pow(10, baseDigits - 1);
+        int endBase = pow(10, baseDigits) - 1;
+        
+        for (int base = startBase; base <= endBase; base++) {
+            for (int repetitions = 2; repetitions <= maxDigits / baseDigits; repetitions++) {
+                long long repeated = generateRepeated(base, repetitions);
+                if (repeated > maxNum) break;
+                if (inRange(repeated, ranges)) {
+                    invalidIDs.insert(repeated);
+                }
+            }
+        }
+    }
+
+    long long sum = 0;
+    for (long long id : invalidIDs) {
+        sum += id;
+    }
+
+    cout << sum << endl;
 }
 
 int main() {
