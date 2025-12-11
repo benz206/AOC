@@ -219,7 +219,180 @@ void problem1() {
 }
 
 void problem2() {
+    string line;
+    long long total = 0;
 
+    // read each machine, one per line
+    while (getline(cin, line)) {
+        if (line.empty()) continue;
+        bool allSpace = true;
+        for (char ch : line) {
+            if (!isspace(static_cast<unsigned char>(ch))) {
+                allSpace = false;
+                break;
+            }
+        }
+        if (allSpace) continue;
+
+        // find [...] just to locate where buttons start; we ignore the pattern in part 2
+        size_t lb = line.find('[');
+        size_t rb = line.find(']', lb + 1);
+        if (rb == string::npos) continue;
+
+        // parse joltage requirements inside {...}
+        size_t lcurly = line.find('{', rb + 1);
+        size_t rcurly = string::npos;
+        if (lcurly != string::npos) rcurly = line.find('}', lcurly + 1);
+
+        vector<int> target;  // target joltage per counter
+        if (lcurly != string::npos && rcurly != string::npos && rcurly > lcurly + 1) {
+            string inside = line.substr(lcurly + 1, rcurly - lcurly - 1);
+
+            int cur = 0;
+            bool have = false;
+            for (char c : inside) {
+                if (c >= '0' && c <= '9') {
+                    cur = cur * 10 + (c - '0');
+                    have = true;
+                } else {
+                    if (have) {
+                        target.push_back(cur);
+                        cur = 0;
+                        have = false;
+                    }
+                }
+            }
+            if (have) target.push_back(cur);
+        }
+
+        int nCounters = (int)target.size();
+        if (nCounters == 0) continue;  // nothing to configure
+
+        // parse button schematics (same as in problem1)
+        vector<vector<int>> buttonIdx;
+        size_t pos = rb + 1;
+        size_t buttonsEnd = (lcurly == string::npos ? line.size() : lcurly);
+
+        while (true) {
+            size_t lp = line.find('(', pos);
+            if (lp == string::npos || lp >= buttonsEnd) break;
+            size_t rp = line.find(')', lp + 1);
+            if (rp == string::npos) break;
+
+            string inside = line.substr(lp + 1, rp - lp - 1);
+
+            vector<int> idx;
+            int cur = 0;
+            bool have = false;
+            for (char c : inside) {
+                if (c >= '0' && c <= '9') {
+                    cur = cur * 10 + (c - '0');
+                    have = true;
+                } else {
+                    if (have) {
+                        idx.push_back(cur);
+                        cur = 0;
+                        have = false;
+                    }
+                }
+            }
+            if (have) idx.push_back(cur);
+
+            buttonIdx.push_back(idx);
+            pos = rp + 1;
+        }
+
+        int m = (int)buttonIdx.size();
+        if (m == 0) continue;  // can't change counters, puzzle shouldn't do this
+
+        int n = nCounters;  // dimension of state space
+
+        // build increment vector for each button: inc[j][i] = +1 if button j affects counter i
+        vector<vector<int>> inc(m, vector<int>(n, 0));
+        for (int j = 0; j < m; ++j) {
+            for (int idx : buttonIdx[j]) {
+                if (0 <= idx && idx < n) {
+                    inc[j][idx] += 1;
+                }
+            }
+        }
+
+        // mixed-radix base for encoding state vectors into a single integer id
+        vector<long long> base(n);
+        base[0] = 1;
+        for (int i = 1; i < n; ++i) {
+            base[i] = base[i - 1] * (target[i - 1] + 1LL);
+        }
+        long long totalStates = base[n - 1] * (target[n - 1] + 1LL);
+
+        // dist[id] = minimum button presses to reach this state; -1 = unvisited
+        vector<int> dist((size_t)totalStates, -1);
+
+        // encode target state id
+        long long targetId = 0;
+        for (int i = 0; i < n; ++i) {
+            targetId += base[i] * (long long)target[i];
+        }
+
+        queue<long long> q;
+        dist[0] = 0;      // all counters start at 0
+        q.push(0);
+
+        vector<int> curVec(n), nxtVec(n);
+        int best = -1;
+
+        // plain BFS on the state graph
+        while (!q.empty()) {
+            long long id = q.front();
+            q.pop();
+            int d = dist[id];
+
+            if (id == targetId) {
+                best = d;
+                break;  // BFS guarantees minimal presses
+            }
+
+            // decode current state id -> curVec[]
+            long long tmp = id;
+            for (int i = n - 1; i >= 0; --i) {
+                long long b = base[i];
+                curVec[i] = (int)(tmp / b);
+                tmp -= (long long)curVec[i] * b;
+            }
+
+            // press each button once from this state
+            for (int j = 0; j < m; ++j) {
+                bool ok = true;
+                for (int i = 0; i < n; ++i) {
+                    int v = curVec[i] + inc[j][i];
+                    if (v > target[i]) {
+                        ok = false;  // overshoots this counter, invalid
+                        break;
+                    }
+                    nxtVec[i] = v;
+                }
+                if (!ok) continue;
+
+                long long nid = 0;
+                for (int i = 0; i < n; ++i) {
+                    nid += base[i] * (long long)nxtVec[i];
+                }
+
+                if (dist[nid] == -1) {
+                    dist[nid] = d + 1;
+                    q.push(nid);
+                }
+            }
+        }
+
+        if (best >= 0) {
+            total += best;
+        } else {
+            // unreachable configuration; puzzle input shouldn't do this
+        }
+    }
+
+    cout << total << '\n';
 }
 
 int main() {
